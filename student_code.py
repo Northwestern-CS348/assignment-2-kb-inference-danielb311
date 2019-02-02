@@ -128,7 +128,86 @@ class KnowledgeBase(object):
         printv("Retracting {!r}", 0, verbose, [fact_or_rule])
         ####################################################
         # Student code goes here
-        
+
+        if factq(fact_or_rule):
+            if fact_or_rule.asserted:
+                self.kb_remove(fact_or_rule)
+
+    def kb_remove(self, fr):
+        if factq(fr):
+            fact = None
+            for i in self.facts:
+                if i == fr:
+                    fact = i
+                    break
+
+            if fact.asserted:
+                fact.asserted = False
+                
+            if fact.supported_by == []:
+                self.facts.remove(fact)
+
+                for i in fact.supports_facts:
+                    for j in i.supported_by:
+                        if j[0] == fact:
+                            fact2 = None
+                            for k in self.facts:
+                                if k == i:
+                                    fact2 = k
+                                    break
+
+                            fact2.supported_by.remove(j)
+                            if fact2.supported_by == [] and fact2.asserted == False:
+                                self.kb_remove(fact2)
+
+                for i in fact.supports_rules:
+                    for j in i.supported_by:
+                        if j[0] == fact:
+                            rule2 = None
+                            for k in self.rules:
+                                if k == i:
+                                    rule2 = k
+                                    break
+
+                            rule2.supported_by.remove(j)
+                            if rule2.supported_by == [] and rule2.asserted == False:
+                                self.kb_remove(rule2)
+        else:
+            rule = None
+            for i in self.rules:
+                if i == fr:
+                    rule = i
+                    break
+
+            if not rule.asserted:
+                if rule.supported_by == []:
+                    self.rules.remove(rule)
+                    
+                    for i in rule.supports_facts:
+                        for j in i.supported_by:
+                            if j[1] == rule:
+                                fact2 = None
+                                for k in self.facts:
+                                    if k == i:
+                                        fact2 = k
+                                        break
+
+                                fact2.supported_by.remove(j)
+                                if fact2.supported_by == [] and fact2.asserted == False:
+                                    self.kb_remove(fact2)
+
+                for i in rule.supports_rules:
+                    for j in i.supported_by:
+                        if j[1] == rule:
+                            rule2 = None
+                            for k in self.rules:
+                                if k == i:
+                                    rule2 = k
+                                    break
+
+                            rule2.supported_by.remove(j)
+                            if rule2.supported_by == [] and rule2.asserted == False:
+                                self.kb_remove(rule2)
 
 class InferenceEngine(object):
     def fc_infer(self, fact, rule, kb):
@@ -146,3 +225,40 @@ class InferenceEngine(object):
             [fact.statement, rule.lhs, rule.rhs])
         ####################################################
         # Student code goes here
+        binding = match(fact.statement, rule.lhs[0])
+
+        if binding != False:
+            #if there's only one part to the left hand side of the rule, then the rule entirely matches the fact, so we can create a new inferred fact
+            if len(rule.lhs) == 1:
+                # newFact = Fact(instantiate(rule.rhs, binding), [fact, rule]) #tried to pass suppported by into constructor but it didn't work
+                newFact = Fact(instantiate(rule.rhs, binding))
+                newFact.supported_by.append([fact, rule])
+
+                #add supports
+                rule.supports_facts.append(newFact)
+                fact.supports_facts.append(newFact)
+
+                newFact.asserted = False
+
+                #add new fact to knowledge base
+                kb.kb_add(newFact)
+            
+            #if there's more than one part to the lhs of the rule, we can't infer a new fact, but we can infer a new rule without the first element of the given rule
+            else:
+                lhsTerms = []
+
+                #skip the first item on the lhs since that one already matches
+                for i in range(1, len(rule.lhs)):
+                    lhsTerms.append(instantiate(rule.lhs[i], binding))
+
+                newRule = Rule([lhsTerms, instantiate(rule.rhs, binding)])
+
+                #add supports
+                newRule.supported_by.append([fact, rule])
+                rule.supports_rules.append(newRule)
+                fact.supports_rules.append(newRule)
+                
+                newRule.asserted = False
+
+                #add new rule to the knowledge base
+                kb.kb_add(newRule)
